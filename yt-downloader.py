@@ -39,6 +39,13 @@ def download(type):
             best_audio = yt.streams.get_audio_only()
             best_video = yt.streams.filter(only_video=True).first()
 
+            print(best_video)
+
+            # audio_location = best_audio.download()
+            video_location = best_video.download()
+
+            print(f'audio in: {"Placeholder"}, video in: {video_location}')
+
         else:
             pass
 
