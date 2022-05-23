@@ -1,8 +1,9 @@
 import os
 import ffmpeg
 import tkinter as tk
-from tkinter import LEFT, filedialog
+from tkinter import LEFT, StringVar, filedialog
 from tkinter.ttk import *
+import pytube
 from pytube import YouTube
 
 
@@ -14,9 +15,22 @@ root.geometry(f'{int(width / 4)}x{int(height / 2)}')
 root.resizable(True, True)
 root.title('YouTube Downloader')
 
+
 # Clear the display for the YouTube URL box by setting ints StringVar to ''
 def clearURL():
     yt_link.set('')
+
+
+# Called whenever the yt_link entry field changes, we want to hide the "Download Status" label.
+def hideDownloadStatus(a, b, c):
+    download_status.set("Download Status: ")
+
+# variables storing data from the two entry text boxes
+yt_link = tk.StringVar()
+yt_link.trace_add('write', hideDownloadStatus)
+destination = tk.StringVar()
+download_status = tk.StringVar()
+download_status.set("Download Status: ")
 
 
 # Set the destination StringVar's data to a new filepath selected by a user
@@ -34,38 +48,62 @@ def download(type):
             on_complete_callback=complete_func
         )
 
-        ## we want to download the best quality video stream: download audio and video separate, then merge.
+        print(yt.title)
+
+        ## we want to download the best quality video stream: download best audio and video separately, then merge.
         if type == 'v':
-            best_audio = yt.streams.get_audio_only()
-            best_video = yt.streams.filter(only_video=True).first()
+            # code below attempts to download audo / video separately then merge
+            # I DIDN'T get the merge to work properly, but the seprate downloads were working
 
-            print(best_video)
+            # best_audio = yt.streams.get_audio_only()
+            # best_video = yt.streams.filter(only_video=True).first()
 
-            # audio_location = best_audio.download()
-            video_location = best_video.download()
+            # audio_location = best_audio.download(filename_prefix='[audio]')
+            # video_location = best_video.download()
 
-            print(f'audio in: {"Placeholder"}, video in: {video_location}')
+            # ffmpeg_audio = ffmpeg.input(audio_location)
+            # ffmpeg_video = ffmpeg.input(video_location)
+
+            # out = ffmpeg.output(ffmpeg_audio, ffmpeg_video, 'out.mp4')
+            # print(out)
+
+            # print(f'audio in: {audio_location} \nvideo in: {video_location}')
+            video_stream = yt.streams.get_highest_resolution().download(output_path=destination.get())
 
         else:
-            pass
+            best_audio = yt.streams.get_audio_only()
+            best_audio.download(output_path=destination.get())
 
         label_invalid_link.grid_remove()
+        entry_yt_link.config(highlightcolor="#b8b7b6")
         entry_yt_link.config(highlightbackground="#b8b7b6")
 
-    except Exception as e:
-        print(f'Error: {e}')
+    # Means that we didn't found a match to the user's input link
+    except pytube.exceptions.RegexMatchError:
+        print('The Regex pattern did not return any matches for the video: {}'.format(yt_link.get()))
         label_invalid_link.grid()
+        entry_yt_link.config(highlightcolor="red") #  Make the error visible to the user
         entry_yt_link.config(highlightbackground="red")
+
+    except pytube.exceptions.ExtractError:
+        print ('An extraction error occurred for the video: {}'.format(yt_link.get()))
+
+    except pytube.exceptions.VideoUnavailable:
+        print('The following video is unavailable: {}'.format(yt_link.get()))
+
 
 # called when the download has completed, will display "Done! File location:"
 def complete_func(stream, file_path):
+    download_status.set(download_status.get() + ', Done!\n' + file_path)
     pass
 
 # Updates a progress label showing percentage that's been downloaded.
 def progress_func(stream, chunk, bytes_remaining):
-    total_size = stream.filesize() # size in bytes of the whole stream
+    total_size = stream.filesize # size in bytes of the whole stream
     percent_completed = (total_size - bytes_remaining) / total_size
-    print(f'Percent Completed: {percent_completed}')
+    download_status.set(f'Download Status: {round(percent_completed * 100, 2)}%')
+    label_progress.update()
+    # print(f'Download Status: {percent_completed*100}%')
 
 def createWidgets():
 
@@ -103,14 +141,12 @@ def createWidgets():
         width=100,
         font=('Arial', 10),
         textvariable=yt_link,
-        highlightcolor='#7af5ed',
+        # highlightcolor='#7af5ed',
         highlightbackground='#b8b7b6',
         highlightthickness=4,
         relief=tk.FLAT
     )
     entry_yt_link.grid(row=2, column=1, pady=30, padx=50)
-    # entry_yt_link.bind('<FocusOut>', lambda event, a=entry_yt_link, b=label_invalid_link:
-    #                     verifyLink(a, b))
 
     # Button to clear the YouTube URL entry box
     btn_clear_yt_link = tk.Button(
@@ -136,7 +172,7 @@ def createWidgets():
         width=100,
         font=('Arial', 10),
         textvariable=destination,
-        highlightcolor='#7af5ed',
+        # highlightcolor='#7af5ed',
         highlightbackground='#b8b7b6',
         highlightthickness=4,
         relief=tk.FLAT
@@ -196,18 +232,16 @@ def createWidgets():
 
     global label_progress
     label_progress = tk.Label(
-        text='Download progress: 50%',
+        textvariable=download_status,
         font=('Arial', 24),
         fg='#349134',
         padx=20,
         pady=100,
+        wraplength= 900,
     )
-    label_progress.grid(row=5, column=1)
+    label_progress.grid(row=5, column=1, rowspan=4)
 
-
-yt_link = tk.StringVar()
-destination = tk.StringVar()
-
+# create all widget elements: labels, buttons, entry fields etc
 createWidgets()
 
 root.mainloop()
